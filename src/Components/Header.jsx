@@ -1,36 +1,50 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
 export default function Header() {
+  const [menuOpen, setMenuOpen] = useState(false)
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 text-slate-100 shadow-xl shadow-slate-950/20 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <NavLink to="/" className="flex items-center gap-3 text-sm sm:text-base">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500 text-lg font-semibold text-white shadow-lg shadow-sky-500/20">
-            DIS
-          </div>
-          <div>
-            <p className="font-semibold tracking-[0.18em] uppercase text-white">Departmental Information</p>
-            <p className="text-xs text-slate-400">College event hub</p>
-          </div>
-        </NavLink>
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-3">
+          <NavLink to="/" className="flex items-center gap-3 text-sm sm:text-base">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500 text-lg font-semibold text-white shadow-lg shadow-sky-500/20">
+              DIS
+            </div>
+            <div>
+              <p className="font-semibold tracking-[0.18em] uppercase text-white">Departmental Information</p>
+              <p className="text-xs text-slate-400">College event hub</p>
+            </div>
+          </NavLink>
+          <button
+            type="button"
+            className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 transition hover:bg-white/10 sm:hidden"
+            onClick={() => setMenuOpen(open => !open)}
+            aria-expanded={menuOpen}
+            aria-label="Toggle navigation menu"
+          >
+            {menuOpen ? 'Close' : 'Menu'}
+          </button>
+        </div>
 
-        <nav className="flex items-center gap-6 text-sm sm:gap-8">
+        <nav className={`${menuOpen ? 'block' : 'hidden'} sm:flex sm:items-center sm:gap-6`}>
           <NavLink
             to="/"
             className={({ isActive }) =>
-              isActive ? 'text-white underline underline-offset-4' : 'text-slate-300 hover:text-white'
+              isActive ? 'block px-3 py-2 text-white underline underline-offset-4' : 'block px-3 py-2 text-slate-300 transition hover:text-white'
             }
+            onClick={() => setMenuOpen(false)}
           >
             Home
           </NavLink>
-          <a href="#overview" className="text-slate-300 hover:text-white">
+          <a href="#overview" className="block px-3 py-2 text-slate-300 transition hover:text-white" onClick={() => setMenuOpen(false)}>
             Overview
           </a>
-          <a href="#events" className="text-slate-300 hover:text-white">
+          <a href="#events" className="block px-3 py-2 text-slate-300 transition hover:text-white" onClick={() => setMenuOpen(false)}>
             Events
           </a>
-          <a href="#contact" className="text-slate-300 hover:text-white">
+          <a href="#contact" className="block px-3 py-2 text-slate-300 transition hover:text-white" onClick={() => setMenuOpen(false)}>
             Contact
           </a>
         </nav>
