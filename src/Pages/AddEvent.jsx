@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { eventSchema, sessionSchema, selectOptions, documentFields } from '../assets/Data'
+import { generateDocxReport } from '../utils/reportGenerator'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -211,6 +212,10 @@ export default function AddEvent() {
 	const [sessions, setSessions] = useState([buildEmpty(sessionSchema)])
 	const [docs, setDocs] = useState(buildEmptyDocs)
 
+	// Report generation state
+	const [isGenerating, setIsGenerating] = useState(false)
+	const [generationError, setGenerationError] = useState('')
+
 	// Error state
 	const [formErrors, setFormErrors] = useState({})
 	const [sessionErrors, setSessionErrors] = useState([{}])
@@ -327,11 +332,9 @@ export default function AddEvent() {
 		}
 	}
 
-	// ── Submit ───────────────────────────────────────────────────────────────
+	// ── Validation and Submit ────────────────────────────────────────────────
 
-	function onSubmit(e) {
-		e.preventDefault()
-
+	function validateAll() {
 		// Touch everything to show all errors
 		const allFormTouched = Object.fromEntries(eventSchema.map(f => [f.name, true]))
 		setFormTouched(allFormTouched)
@@ -341,25 +344,68 @@ export default function AddEvent() {
 		)
 		setSessionTouched(allSessionTouched)
 
+		const allDocTouched = Object.fromEntries(documentFields.map(d => [d, true]))
+		setDocTouched(allDocTouched)
+
 		// Run all validations
 		const newFormErrors = validateForm(eventSchema, form)
 		const newSessionErrors = validateSessions(sessions)
 
+		// Check document link validations
+		const newDocErrors = { ...docErrors }
+		documentFields.forEach(d => {
+			const val = docs[d]
+			if (d.toLowerCase().includes('link') && val) {
+				try {
+					new URL(val)
+					newDocErrors[d] = ''
+				} catch {
+					newDocErrors[d] = 'Enter a valid URL.'
+				}
+			}
+		})
+
 		setFormErrors(newFormErrors)
 		setSessionErrors(newSessionErrors)
+		setDocErrors(newDocErrors)
 
-		// Check if anything is invalid
 		const formInvalid = hasErrors(newFormErrors)
 		const sessionsInvalid = newSessionErrors.some(hasErrors)
-		const docsInvalid = hasErrors(docErrors)
+		const docsInvalid = hasErrors(newDocErrors)
 
-		if (formInvalid || sessionsInvalid || docsInvalid) {
+		return !(formInvalid || sessionsInvalid || docsInvalid)
+	}
+
+	function onSubmit(e) {
+		e.preventDefault()
+
+		if (!validateAll()) {
 			console.warn('AddEvent: Form has validation errors — submission blocked.')
 			return
 		}
 
 		const payload = { ...form, sessions, documents: docs }
 		console.log('AddEvent payload:', payload)
+	}
+
+	async function handleGenerateReport() {
+		setGenerationError('')
+
+		if (!validateAll()) {
+			console.warn('AddEvent: Form has validation errors — report generation blocked.')
+			setGenerationError('Please fix all validation errors before generating the report.')
+			return
+		}
+
+		setIsGenerating(true)
+		try {
+			await generateDocxReport(form, sessions, docs)
+		} catch (error) {
+			console.error("Report generation failed:", error)
+			setGenerationError('Failed to generate report. Please try again.')
+		} finally {
+			setIsGenerating(false)
+		}
 	}
 
 	// ── Reset ────────────────────────────────────────────────────────────────
@@ -407,29 +453,29 @@ export default function AddEvent() {
 
 						{/* ── Sessions ── */}
 						<section>
-						<div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-							<h3 className="text-base font-semibold text-slate-300 uppercase tracking-wider">Sessions</h3>
-							<button
-								type="button"
-								onClick={addSession}
-								className="w-full rounded-full bg-sky-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-sky-500 sm:w-auto"
-						>
-							+ Add Session
-						</button>
-					</div>
-									{sessions.map((s, idx) => (
-										<SessionCard
-											key={idx}
-											index={idx}
-											session={s}
-											sessionErrors={sessionErrors[idx] || {}}
-											sessionTouched={sessionTouched[idx] || {}}
-											onChange={handleSessionChange}
-											onBlur={handleSessionBlur}
-											onRemove={() => removeSession(idx)}
-										/>
-									))}
-								{/* </div>
+							<div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+								<h3 className="text-base font-semibold text-slate-300 uppercase tracking-wider">Sessions</h3>
+								<button
+									type="button"
+									onClick={addSession}
+									className="w-full rounded-full bg-sky-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-sky-500 sm:w-auto"
+								>
+									+ Add Session
+								</button>
+							</div>
+							{sessions.map((s, idx) => (
+								<SessionCard
+									key={idx}
+									index={idx}
+									session={s}
+									sessionErrors={sessionErrors[idx] || {}}
+									sessionTouched={sessionTouched[idx] || {}}
+									onChange={handleSessionChange}
+									onBlur={handleSessionBlur}
+									onRemove={() => removeSession(idx)}
+								/>
+							))}
+							{/* </div>
 							)} */}
 						</section>
 
@@ -443,20 +489,33 @@ export default function AddEvent() {
 						/>
 
 						{/* ── Actions ── */}
-						<div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
-							<button
-								type="submit"
-								className="w-full rounded-full bg-sky-600 px-7 py-2.5 font-semibold text-white transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400 sm:w-auto"
-							>
-								Submit Event
-							</button>
-							<button
-								type="button"
-								onClick={onReset}
-								className="w-full rounded-full border border-white/10 px-5 py-2.5 text-sm text-slate-300 transition hover:bg-white/5 sm:w-auto"
-							>
-								Reset
-							</button>
+						<div className="flex flex-col gap-3 pt-2">
+							{generationError && (
+								<p className="text-sm text-rose-400 font-medium">{generationError}</p>
+							)}
+							<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+								<button
+									type="submit"
+									className="w-full rounded-full bg-sky-600 px-7 py-2.5 font-semibold text-white transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400 sm:w-auto"
+								>
+									Submit Event
+								</button>
+								<button
+									type="button"
+									disabled={isGenerating}
+									onClick={handleGenerateReport}
+									className="w-full rounded-full bg-emerald-600 px-7 py-2.5 font-semibold text-white transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
+								>
+									{isGenerating ? 'Generating Report...' : 'Submit Report'}
+								</button>
+								<button
+									type="button"
+									onClick={onReset}
+									className="w-full rounded-full border border-white/10 px-5 py-2.5 text-sm text-slate-300 transition hover:bg-white/5 sm:w-auto"
+								>
+									Reset
+								</button>
+							</div>
 						</div>
 
 					</form>
